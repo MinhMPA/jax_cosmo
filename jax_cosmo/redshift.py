@@ -8,6 +8,9 @@ from jax.tree_util import register_pytree_node_class
 from jax_cosmo.jax_utils import container
 from jax_cosmo.scipy.integrate import simps
 
+from jax.scipy.special import expit
+from jax.scipy.signal import convolve
+
 steradian_to_arcmin2 = 11818102.86004228
 
 __all__ = ["smail_nz", "kde_nz", "delta_nz"]
@@ -17,6 +20,7 @@ class redshift_distribution(container):
     def __init__(self, *args, gals_per_arcmin2=1.0, zmax=10.0, **kwargs):
         """Initialize the parameters of the redshift distribution"""
         self._norm = None
+        self._norm_integral_Npoints = 256
         self._gals_per_arcmin2 = gals_per_arcmin2
         super(redshift_distribution, self).__init__(*args, zmax=zmax, **kwargs)
 
@@ -28,7 +32,9 @@ class redshift_distribution(container):
     def __call__(self, z):
         """Computes the normalized n(z)"""
         if self._norm is None:
-            self._norm = simps(lambda t: self.pz_fn(t), 0.0, self.config["zmax"], 256)
+            self._norm = simps(lambda t: self.pz_fn(t), 0.0, self.config["zmax"],
+                    self._norm_integral_Npoints)
+            print(self._norm.shape)
         return self.pz_fn(z) / self._norm
 
     @property
@@ -147,32 +153,30 @@ class systematic_shift(redshift_distribution):
 
 #New functions
 @register_pytree_node_class
-class step_fcn(redshift_distribution):
-    """ Implements a step function in a redshift distribution to make binning easier.
-
-    Arguments:
-    redshift_distribution
-    z_min
-    z_max
-    """
-
-    def pz_fn(self, z):
-        parent_pz, zmin, zmax = self.params[:3]
-        return parent_pz.pz_fn(z)*(np.heaviside(z-zmin, 1)-np.heaviside(z-zmax,1))
-
-from jax_cosmo.scipy.integrate import romb
-@register_pytree_node_class
-class gaussian_convolution(redshift_distribution):
-    """Convolves a redshift distribution with a Gaussian kernel for easier binning.
+class gaussian_sigmoid_nz(redshift_distribution):
+    """Defines a sigmoid redshift distribution with additional Gaussian smoothing.
     
     Arguments:
     redshift_distribution
-    mu: mean of the Gaussian kernel
-    sigma: std. devation of the Gaussian kernel
+    zbin_width: width of the tomographic redshift bins
+    zbin_transition: transition scale where the sigmoid goes from 1 to 0
+    gauss_mu: mean of the Gaussian smoothing kernel
+    gauss_sigma: std. devation of the Gaussian smoothing kernel
     """
+    def _sigmoid_kernel(self, x, bin_width, bin_transition):
+        half_width = 0.5*bin_width
+        transition_width = half_width*bin_transition
+        x0 = half_width - transition_width
+        return expit((x+x0)/transition_width) \
+                - expit((x-x0)/transition_width)
+
+    def _gauss_kernel(self, a, mu, sigma):
+        return (((2*np.pi)*sigma**2)**(-.5)) * np.exp((-.5)*((a-mu)/sigma)**2)
+
     def pz_fn(self, z):
-        parent_pz, mu, sigma = self.params[:3]
-        kernel = lambda a : (2*np.pi*sigma**2)**-.5*np.exp(-.5*((a-mu)/sigma)**2)
-        print(type(z))
-        print(z.shape)
-        return simps(lambda x: kernel(x)*parent_pz.pz_fn(z-x), -25,25, N=256)
+        parent_pz, zbin_width, zbin_transition, gauss_mu, gauss_sigma = self.params[:5]
+        x = np.linspace(0.0,self.config["zmax"],self._norm_integral_Npoints+1)
+        sigmoid_k = self._sigmoid_kernel(parent_pz.pz_fn(z), zbin_width, zbin_transition)
+        gauss_k = self._gauss_kernel(x, gauss_mu, gauss_sigma)
+        convolved_nz = convolve(sigmoid_k,gauss_k,mode='same')
+        return convolved_nz
