@@ -144,3 +144,35 @@ class systematic_shift(redshift_distribution):
     def pz_fn(self, z):
         parent_pz, bias = self.params[:2]
         return parent_pz.pz_fn(np.clip(z - bias, 0))
+
+#New functions
+@register_pytree_node_class
+class step_fcn(redshift_distribution):
+    """ Implements a step function in a redshift distribution to make binning easier.
+
+    Arguments:
+    redshift_distribution
+    z_min
+    z_max
+    """
+
+    def pz_fn(self, z):
+        parent_pz, zmin, zmax = self.params[:3]
+        return parent_pz.pz_fn(z)*(np.heaviside(z-zmin, 1)-np.heaviside(z-zmax,1))
+
+from jax_cosmo.scipy.integrate import romb
+@register_pytree_node_class
+class gaussian_convolution(redshift_distribution):
+    """Convolves a redshift distribution with a Gaussian kernel for easier binning.
+    
+    Arguments:
+    redshift_distribution
+    mu: mean of the Gaussian kernel
+    sigma: std. devation of the Gaussian kernel
+    """
+    def pz_fn(self, z):
+        parent_pz, mu, sigma = self.params[:3]
+        kernel = lambda a : (2*np.pi*sigma**2)**-.5*np.exp(-.5*((a-mu)/sigma)**2)
+        print(type(z))
+        print(z.shape)
+        return simps(lambda x: kernel(x)*parent_pz.pz_fn(z-x), -25,25, N=256)
