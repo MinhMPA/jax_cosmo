@@ -73,6 +73,9 @@ class Cosmology:
             + "    Omega_b:  "
             + str(self.Omega_b)
             + " \n"
+            + "    Omega_c:  "
+            + str(self.Omega_c)
+            +"\n"
             + "    Omega_m:  "
             + str(self.Omega_m)
             + " \n"
@@ -90,6 +93,9 @@ class Cosmology:
             + " \n"
             + "    S8:   "
             + str(self.S8)
+            +"\n"
+            +"     sigma8:   "
+            +str(self.sigma8)
         )
 
     def __repr__(self):
@@ -153,7 +159,7 @@ class Cosmology:
 
     @property
     def Omega_c(self):
-        return self._Omega_m-self._Omega_c
+        return self._Omega_m-self._Omega_b
 
     @property
     def Omega_m(self):
@@ -197,7 +203,7 @@ class Cosmology:
 
     @property
     def sigma8(self):
-        return self._S8*(self._Omega_m/0.3)**-.5
+        return self._S8/(self._Omega_m/0.3)**.5
 
     @property
     def gamma(self):
