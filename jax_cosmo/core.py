@@ -11,7 +11,7 @@ __all__ = ["Cosmology"]
 
 @register_pytree_node_class
 class Cosmology:
-    def __init__(self, Omega_c, Omega_b, h, n_s, sigma8, Omega_k, w0, wa, gamma=None):
+    def __init__(self, Omega_m, Omega_b, h, n_s, S8, Omega_k, w0, wa, gamma=None):
         """
         Cosmology object, stores primary and derived cosmological parameters.
 
@@ -45,11 +45,11 @@ class Cosmology:
 
         """
         # Store primary parameters
-        self._Omega_c = Omega_c
+        self._Omega_m = Omega_m
         self._Omega_b = Omega_b
         self._h = h
         self._n_s = n_s
-        self._sigma8 = sigma8
+        self._S8 = S8
         self._Omega_k = Omega_k
         self._w0 = w0
         self._wa = wa
@@ -73,8 +73,8 @@ class Cosmology:
             + "    Omega_b:  "
             + str(self.Omega_b)
             + " \n"
-            + "    Omega_c:  "
-            + str(self.Omega_c)
+            + "    Omega_m:  "
+            + str(self.Omega_m)
             + " \n"
             + "    Omega_k:  "
             + str(self.Omega_k)
@@ -88,8 +88,8 @@ class Cosmology:
             + "    n:        "
             + str(self.n_s)
             + " \n"
-            + "    sigma8:   "
-            + str(self.sigma8)
+            + "    S8:   "
+            + str(self.S8)
         )
 
     def __repr__(self):
@@ -98,11 +98,11 @@ class Cosmology:
     # Operations for flattening/unflattening representation
     def tree_flatten(self):
         params = (
-            self._Omega_c,
+            self._Omega_m,
             self._Omega_b,
             self._h,
             self._n_s,
-            self._sigma8,
+            self._S8,
             self._Omega_k,
             self._w0,
             self._wa,
@@ -119,8 +119,9 @@ class Cosmology:
     @classmethod
     def tree_unflatten(cls, aux_data, children):
         # Retrieve base parameters
-        Omega_c, Omega_b, h, n_s, sigma8, Omega_k, w0, wa = children[:8]
-        children = list(children[8:]).reverse()
+        Omega_m, Omega_b, h, n_s, S8, Omega_k, w0, wa = children[:8]
+        children = list(children[8:])
+        children.reverse()
 
         # We extract the remaining parameters in reverse order from how they
         # were inserted
@@ -130,11 +131,11 @@ class Cosmology:
             gamma = None
 
         return cls(
-            Omega_c=Omega_c,
+            Omega_m=Omega_m,
             Omega_b=Omega_b,
             h=h,
             n_s=n_s,
-            sigma8=sigma8,
+            S8=S8,
             Omega_k=Omega_k,
             w0=w0,
             wa=wa,
@@ -152,11 +153,11 @@ class Cosmology:
 
     @property
     def Omega_c(self):
-        return self._Omega_c
+        return self._Omega_m-self._Omega_c
 
     @property
     def Omega_m(self):
-        return self._Omega_b + self._Omega_c
+        return self._Omega_m
 
     @property
     def Omega_de(self):
@@ -189,10 +190,14 @@ class Cosmology:
     @property
     def n_s(self):
         return self._n_s
+    
+    @property
+    def S8(self):
+        return self._S8
 
     @property
     def sigma8(self):
-        return self._sigma8
+        return self._S8*(self._Omega_m/0.3)**-.5
 
     @property
     def gamma(self):
