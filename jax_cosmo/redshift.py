@@ -115,10 +115,10 @@ class kde_nz(redshift_distribution):
     nz = kde_nz(redshift_catalog, w, bw=0.1)
     """
 
-    def _kernel(self, bw, X, x):
+    def _kernel(self, bw, X, x, bwz_scale=0.0):
         """Gaussian kernel for KDE"""
-        return (1.0 / np.sqrt(2 * np.pi) / bw) * np.exp(
-            -((X - x) ** 2) / (bw**2 * 2.0)
+        return (1.0 / np.sqrt(2 * np.pi) / bw*(1.0+bwz_scale*x)) * np.exp(
+            -((X - x) ** 2) / ((bw*(1.0+bwz_scale*x))**2 * 2.0)
         )
 
     def pz_fn(self, z):
