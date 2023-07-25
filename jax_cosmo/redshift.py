@@ -110,9 +110,10 @@ class kde_nz(redshift_distribution):
     Configuration:
     --------------
     bw: Bandwidth for the KDE
+    bwz_scale: Redshift scale factor for the KDE bandwidth
 
     Example:
-    nz = kde_nz(redshift_catalog, w, bw=0.1)
+    nz = kde_nz(redshift_catalog, w, bw=0.1, bwz_scale=0.0)
     """
 
     def _kernel(self, bw, X, x, bwz_scale=0.0):
