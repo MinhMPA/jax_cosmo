@@ -579,4 +579,4 @@ def _growth_rate_gamma(cosmo, a):
 
     see :cite:`2019:Euclid Preparation VII, eqn.32`
     """
-    return Omega_m_a(cosmo, a) ** cosmo.gamma
+    return Omega_m_a(cosmo, a) ** (cosmo.gamma0 + cosmo.gamma1*a*(1.-1./a)**2)

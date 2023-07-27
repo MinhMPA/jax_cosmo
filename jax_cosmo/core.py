@@ -11,12 +11,14 @@ __all__ = ["Cosmology"]
 
 @register_pytree_node_class
 class Cosmology:
-    def __init__(self, Omega_c, Omega_b, h, n_s, sigma8, Omega_k, w0, wa, gamma=None):
+    def __init__(self, Omega_m, Omega_c, Omega_b, h, n_s, sigma8, S8, Omega_k, w0, wa, gamma0=None, gamma1=None):
         """
         Cosmology object, stores primary and derived cosmological parameters.
 
         Parameters:
         -----------
+        Omega_m, float
+          Total matter density fraction.
         Omega_c, float
           Cold dark matter density fraction.
         Omega_b, float
@@ -27,14 +29,18 @@ class Cosmology:
           Primordial scalar perturbation spectral index.
         sigma8, float
           Variance of matter density perturbations at an 8 Mpc/h scale
+        S8, float
+          sigma8*(Omega_m/0.3)**0.5
         Omega_k, float
           Curvature density fraction.
         w0, float
           First order term of dark energy equation
         wa, float
           Second order term of dark energy equation of state
-        gamma: float
-          Index of the growth rate (optional)
+        gamma0: float
+          Index of the growth rate (optional), does not scale with z
+        gamma1: float
+          Index of the growth rate (optional), scales as z^2/(1+z)
 
         Notes:
         ------
@@ -45,11 +51,13 @@ class Cosmology:
 
         """
         # Store primary parameters
+        self._Omega_m = Omega_m
         self._Omega_c = Omega_c
         self._Omega_b = Omega_b
         self._h = h
         self._n_s = n_s
         self._sigma8 = sigma8
+        self._S8 = S8
         self._Omega_k = Omega_k
         self._w0 = w0
         self._wa = wa
@@ -57,8 +65,9 @@ class Cosmology:
         self._flags = {}
 
         # Secondary optional parameters
-        self._gamma = gamma
-        self._flags["gamma_growth"] = gamma is not None
+        self._gamma0 = gamma0
+        self._gamma1 = gamma1
+        self._flags["gamma_growth"] = gamma0 is not None
 
         # Create a workspace where functions can store some precomputed
         # results
@@ -70,11 +79,14 @@ class Cosmology:
             + "    h:        "
             + str(self.h)
             + " \n"
-            + "    Omega_b:  "
-            + str(self.Omega_b)
+            + "    Omega_m:  "
+            + str(self.Omega_m)
             + " \n"
             + "    Omega_c:  "
             + str(self.Omega_c)
+            + " \n"
+            + "    Omega_b:  "
+            + str(self.Omega_b)
             + " \n"
             + "    Omega_k:  "
             + str(self.Omega_k)
@@ -90,6 +102,9 @@ class Cosmology:
             + " \n"
             + "    sigma8:   "
             + str(self.sigma8)
+            + " \n"
+            + "    S8:   "
+            + str(self.S8)
         )
 
     def __repr__(self):
@@ -98,18 +113,20 @@ class Cosmology:
     # Operations for flattening/unflattening representation
     def tree_flatten(self):
         params = (
+            self._Omega_m,
             self._Omega_c,
             self._Omega_b,
             self._h,
             self._n_s,
             self._sigma8,
+            self._S8,
             self._Omega_k,
             self._w0,
             self._wa,
         )
 
         if self._flags["gamma_growth"]:
-            params += (self._gamma,)
+            params += (self._gamma0,self._gamma1)
 
         return (
             params,
@@ -119,27 +136,31 @@ class Cosmology:
     @classmethod
     def tree_unflatten(cls, aux_data, children):
         # Retrieve base parameters
-        Omega_c, Omega_b, h, n_s, sigma8, Omega_k, w0, wa = children[:8]
-        children = list(children[8:])
+        Omega_m, Omega_c, Omega_b, h, n_s, sigma8, S8, Omega_k, w0, wa = children[:10]
+        children = list(children[10:])
         children.reverse()
 
         # We extract the remaining parameters in reverse order from how they
         # were inserted
         if aux_data["gamma_growth"]:
-            gamma = children.pop()
+            gamma0, gamma1 = children[-2:]
         else:
-            gamma = None
+            gamma0 = None
+            gamma1 = None
 
         return cls(
+            Omega_m=Omega_m,
             Omega_c=Omega_c,
             Omega_b=Omega_b,
             h=h,
             n_s=n_s,
             sigma8=sigma8,
+            S8=S8,
             Omega_k=Omega_k,
             w0=w0,
             wa=wa,
-            gamma=gamma,
+            gamma0=gamma0,
+            gamma1=gamma1,
         )
 
     # Cosmological parameters, base and derived
@@ -148,16 +169,16 @@ class Cosmology:
         return 1.0 - self._Omega_k
 
     @property
-    def Omega_b(self):
-        return self._Omega_b
+    def Omega_m(self):
+        return self._Omega_m
 
     @property
     def Omega_c(self):
-        return self._Omega_c
+        return self._Omega_m - self._Omega_b
 
     @property
-    def Omega_m(self):
-        return self._Omega_b + self._Omega_c
+    def Omega_b(self):
+        return self._Omega_b
 
     @property
     def Omega_de(self):
@@ -196,5 +217,12 @@ class Cosmology:
         return self._sigma8
 
     @property
-    def gamma(self):
-        return self._gamma
+    def S8(self):
+        return self._sigma8*(self._Omega_m/0.30)**0.5
+
+    @property
+    def gamma0(self):
+        return self._gamma0
+    @property
+    def gamma1(self):
+        return self._gamma1
