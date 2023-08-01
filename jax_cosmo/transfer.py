@@ -154,3 +154,60 @@ def Eisenstein_Hu(cosmo, k, type="eisenhu_osc"):
     else:
         raise NotImplementedError
     return res
+
+
+def sh_d_Eisenstein_Hu(cosmo):
+    """Computes the Eisenstein & Hu matter transfer function.
+
+    Parameters
+    ----------
+    cosmo: Background
+      Background cosmology
+
+    Returns
+    -------
+    T: float
+      Value of the transfer function at the requested wave number
+
+    """
+    #############################################
+    # Quantities computed from 1998:EisensteinHu
+    # Provides : - k_eq   : scale of the particle horizon at equality epoch
+    #            - z_eq   : redshift of equality epoch
+    #            - R_eq   : ratio of the baryon to photon momentum density
+    #                       at z_eq
+    #            - z_d    : redshift of drag epoch
+    #            - R_d    : ratio of the baryon to photon momentum density
+    #                       at z_d
+    #            - sh_d   : sound horizon at drag epoch
+    #            - k_silk : Silk damping scale
+    T_2_7_sqr = (const.tcmb / 2.7) ** 2
+    h2 = cosmo.h**2
+    w_m = cosmo.Omega_m * h2
+    w_b = cosmo.Omega_b * h2
+
+    k_eq = 7.46e-2 * w_m / T_2_7_sqr / cosmo.h  # Eq. (3) [h/Mpc]
+    z_eq = 2.50e4 * w_m / (T_2_7_sqr) ** 2  # Eq. (2)
+
+    # z drag from Eq. (4)
+    b1 = 0.313 * np.power(w_m, -0.419) * (1.0 + 0.607 * np.power(w_m, 0.674))
+    b2 = 0.238 * np.power(w_m, 0.223)
+    z_d = (
+        1291.0
+        * np.power(w_m, 0.251)
+        / (1.0 + 0.659 * np.power(w_m, 0.828))
+        * (1.0 + b1 * np.power(w_b, b2))
+    )
+
+    # Ratio of the baryon to photon momentum density at z_d  Eq. (5)
+    R_d = 31.5 * w_b / (T_2_7_sqr) ** 2 * (1.0e3 / z_d)
+    # Ratio of the baryon to photon momentum density at z_eq Eq. (5)
+    R_eq = 31.5 * w_b / (T_2_7_sqr) ** 2 * (1.0e3 / z_eq)
+    # Sound horizon at drag epoch in h^-1 Mpc Eq. (6)
+    sh_d = (
+        2.0
+        / (3.0 * k_eq)
+        * np.sqrt(6.0 / R_eq)
+        * np.log((np.sqrt(1.0 + R_d) + np.sqrt(R_eq + R_d)) / (1.0 + np.sqrt(R_eq)))
+    )
+    return sh_d
