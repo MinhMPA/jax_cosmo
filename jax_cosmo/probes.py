@@ -71,7 +71,7 @@ def weak_lensing_kernel(cosmo, pzs, z, ell):
 
     # Constant term
     constant_factor = 3.0 * const.H0**2 * cosmo.Omega_m / 2.0 / const.c
-    # Ell dependent factor
+    # Ell-dependent factor
     ell_factor = np.sqrt((ell - 1) * (ell) * (ell + 1) * (ell + 2)) / (ell + 0.5) ** 2
     return constant_factor * ell_factor * radial_kernel
 
@@ -152,6 +152,7 @@ class WeakLensing(container):
     def __init__(
         self,
         redshift_bins,
+        lmax=None,
         ia_bias=None,
         multiplicative_bias=0.0,
         sigma_e=0.26,
@@ -161,10 +162,10 @@ class WeakLensing(container):
         # container
         if ia_bias is None:
             ia_enabled = False
-            args = (redshift_bins, multiplicative_bias)
+            args = (redshift_bins, lmax, multiplicative_bias)
         else:
             ia_enabled = True
-            args = (redshift_bins, multiplicative_bias, ia_bias)
+            args = (redshift_bins, lmax, multiplicative_bias, ia_bias)
         if "ia_enabled" not in kwargs.keys():
             kwargs["ia_enabled"] = ia_enabled
         super(WeakLensing, self).__init__(*args, sigma_e=sigma_e, **kwargs)
@@ -181,13 +182,21 @@ class WeakLensing(container):
     @property
     def zmax(self):
         """
-        Returns the maximum redsfhit probed by this probe
+        Returns the maximum redshift probed by this probe
         """
         # Extract parameters
         pzs = self.params[0]
         return max([pz.zmax for pz in pzs])
 
-    def kernel(self, cosmo, z, ell):
+    @property
+    def lmax(self):
+        """
+        Returns the maximum multipole probed by this probe
+        """
+        # Extract parameters
+        return self.params[1]
+
+    def kernel(self, cosmo, z, ell, lmax=None):
         """
         Compute the radial kernel for all nz bins in this probe.
 
@@ -197,16 +206,21 @@ class WeakLensing(container):
         """
         z = np.atleast_1d(z)
         # Extract parameters
-        pzs, m = self.params[:2]
+        pzs, lmax, m = self.params[:3]
         kernel = weak_lensing_kernel(cosmo, pzs, z, ell)
         # If IA is enabled, we add the IA kernel
         if self.config["ia_enabled"]:
-            bias = self.params[2]
+            bias = self.params[3]
             kernel += nla_kernel(cosmo, pzs, bias, z, ell)
         # Applies measurement systematics
         if isinstance(m, list):
             m = np.expand_dims(np.stack([mi for mi in m], axis=0), 1)
         kernel *= 1.0 + m
+        if (lmax is not None):
+            if isinstance(lmax, list):
+                lmax = np.expand_dims(np.stack([bin_lmax for bin_lmax in lmax], axis=0), 1)
+            ell_weight = np.where(ell>lmax, 0., 1.)
+            kernel *= ell_weight
         return kernel
 
     def noise(self):
@@ -238,9 +252,14 @@ class NumberCounts(container):
     has_rsd....
     """
 
-    def __init__(self, redshift_bins, bias, has_rsd=False, **kwargs):
+    def __init__(
+            self,
+            redshift_bins,
+            bias,
+            lmax=None,
+            has_rsd=False, **kwargs):
         super(NumberCounts, self).__init__(
-            redshift_bins, bias, has_rsd=has_rsd, **kwargs
+            redshift_bins, lmax, bias, has_rsd=has_rsd, **kwargs
         )
 
     @property
@@ -253,13 +272,21 @@ class NumberCounts(container):
         return max([pz.zmax for pz in pzs])
 
     @property
+    def lmax(self):
+        """
+        Returns the maximum multipole probed by this probe
+        """
+        # Extract parameters
+        return self.params[1]
+
+    @property
     def n_tracers(self):
         """Returns the number of tracers for this probe, i.e. redshift bins"""
         # Extract parameters
         pzs = self.params[0]
         return len(pzs)
 
-    def kernel(self, cosmo, z, ell):
+    def kernel(self, cosmo, z, ell, lmax=None):
         """Compute the radial kernel for all nz bins in this probe.
 
         Returns:
@@ -268,9 +295,14 @@ class NumberCounts(container):
         """
         z = np.atleast_1d(z)
         # Extract parameters
-        pzs, bias = self.params
+        pzs, lmax, bias = self.params
         # Retrieve density kernel
         kernel = density_kernel(cosmo, pzs, bias, z, ell)
+        if (lmax is not None):
+            if isinstance(lmax, list):
+                lmax = np.expand_dims(np.stack([bin_lmax for bin_lmax in lmax], axis=0), 1)
+            ell_weight = np.where(ell>lmax, 0., 1.)
+            kernel *= ell_weight
         return kernel
 
     def noise(self):
